@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "memoire-ai"
+version = "0.1.0"
+description = "Persistent project memory for Claude Code"
+requires-python = ">=3.12"
+readme = "README.md"
+license = { text = "MIT" }
+keywords = ["claude", "ai", "memory", "mcp", "developer-tools"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "surrealdb>=2.0.0",
+    "watchdog>=6.0.0",
+    "mcp>=1.0.0",
+    "click>=8.0.0",
+    "httpx>=0.27.0",
+]
+
+[project.scripts]
+memoire = "memoire.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["memoire*"]

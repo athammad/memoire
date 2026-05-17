@@ -1,0 +1,23 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "memoire hook-event"
+          }
+        ]
+      }
+    ]
+  },
+  "mcpServers": {
+    "memoire-ai": {
+      "command": "memoire",
+      "args": [
+        "mcp"
+      ]
+    }
+  }
+}

@@ -1,0 +1,2 @@
+[console_scripts]
+memoire = memoire.cli:main

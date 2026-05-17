@@ -1,0 +1,20 @@
+#V2
+DEFINE ANALYZER IF NOT EXISTS memory_analyzer TOKENIZERS blank FILTERS lowercase, ascii;
+DEFINE INDEX IF NOT EXISTS entity_search_idx ON TABLE entities FIELDS name;
+DEFINE INDEX IF NOT EXISTS entity_name_idx ON TABLE entities COLUMNS name FULLTEXT ANALYZER memory_analyzer BM25;
+SELECT name FROM entities WHERE name @@ 'test';
+SELECT name, search::score() AS score FROM entities WHERE name @@ 'test' ORDER BY score DESC;
+SELECT name, search::score(0) AS score FROM entities WHERE name @@ 'test' ORDER BY score DESC;
+SELECT name, type, summary FROM entities WHERE project_id = 'memoria_e639a61a';
+SELECT title, summary FROM documents WHERE project_id = 'memoria_e639a61a';
+SELECT source, relation, target FROM relationships WHERE project_id = 'memoria_e639a61a';
+SELECT source, relation, target FROM relationships WHERE project_id = 'memoria_e639a61a' AND source = 'project_cognition_engine_generic.md';
+UPDATE entities SET content_hash = NONE WHERE project_id = 'memoria_e639a61a' AND string::ends_with(name, '.md');
+SELECT source, relation, target FROM relationships WHERE project_id = 'memoria_e639a61a' AND source = 'project_cognition_engine_generic.md';
+UPDATE entities SET content_hash = NONE WHERE project_id = 'memoria_e639a61a' AND string::ends_with(name, '.md');
+SELECT source, relation, target FROM relationships WHERE project_id = 'memoria_e639a61a' AND source = 'project_cognition_engine_generic.md';
+SELECT name, content_hash FROM entities WHERE project_id = 'memoria_e639a61a' AND string::ends_with(name, '.md');
+SELECT source, relation, target FROM relationships WHERE project_id = 'memoria_e639a61a' AND source = 'Project Cognition Engine';
+SELECT summary, created_at FROM events WHERE project_id = 'memoria_e639a61a' ORDER BY created_at DESC LIMIT 10;
+SELECT name, type, summary FROM entities WHERE project_id = 'memoria_e639a61a' LIMIT 3;
+SELECT source, relation, target FROM relationships WHERE project_id = 'memoria_e639a61a' LIMIT 5;
