@@ -8,3 +8,11 @@ build/
 *.db
 *.sqlite
 .DS_Store
+
+# memoire runtime data (not part of the library)
+.memory/
+history.txt
+project_cognition_engine_generic.md
+
+# Claude Code
+.claude/

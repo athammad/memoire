@@ -1,5 +1,0 @@
-surrealdb>=2.0.0
-watchdog>=6.0.0
-mcp>=1.0.0
-click>=8.0.0
-httpx>=0.27.0
