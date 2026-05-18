@@ -5,11 +5,11 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "memoire-ai"
 version = "0.1.0"
-description = "Persistent project memory for Claude Code"
+description = "Persistent causal project memory for AI coding assistants"
 requires-python = ">=3.12"
 readme = "README.md"
 license = { text = "MIT" }
-keywords = ["claude", "ai", "memory", "mcp", "developer-tools"]
+keywords = ["claude", "cursor", "windsurf", "codex", "gemini", "ai", "memory", "mcp", "developer-tools", "knowledge-graph"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
@@ -25,6 +25,14 @@ dependencies = [
 
 [project.scripts]
 memoire = "memoire.cli:main"
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+docs = [
+    "mkdocs>=1.6.0",
+    "mkdocs-material>=9.5.0",
+    "mkdocs-material-extensions>=1.3.0",
+]
 
 [tool.setuptools.packages.find]
 where = ["."]

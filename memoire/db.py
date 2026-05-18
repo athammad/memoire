@@ -32,10 +32,13 @@ async def ensure_schema(db: AsyncWsSurrealConnection) -> None:
         "DEFINE ANALYZER IF NOT EXISTS memory_analyzer TOKENIZERS blank FILTERS lowercase, ascii",
         "DEFINE INDEX IF NOT EXISTS entity_name_idx ON TABLE entities COLUMNS name FULLTEXT ANALYZER memory_analyzer BM25",
         "DEFINE INDEX IF NOT EXISTS entity_summary_idx ON TABLE entities COLUMNS summary FULLTEXT ANALYZER memory_analyzer BM25",
+        "DEFINE INDEX IF NOT EXISTS entity_type_idx ON TABLE entities COLUMNS type",
         "DEFINE INDEX IF NOT EXISTS event_summary_idx ON TABLE events COLUMNS summary FULLTEXT ANALYZER memory_analyzer BM25",
         "DEFINE INDEX IF NOT EXISTS document_title_idx ON TABLE documents COLUMNS title FULLTEXT ANALYZER memory_analyzer BM25",
         "DEFINE INDEX IF NOT EXISTS document_summary_idx ON TABLE documents COLUMNS summary FULLTEXT ANALYZER memory_analyzer BM25",
         "DEFINE INDEX IF NOT EXISTS document_content_idx ON TABLE documents COLUMNS content FULLTEXT ANALYZER memory_analyzer BM25",
+        "DEFINE INDEX IF NOT EXISTS rel_source_relation_idx ON TABLE relationships COLUMNS source, relation",
+        "DEFINE INDEX IF NOT EXISTS rel_extracted_from_idx ON TABLE relationships COLUMNS extracted_from",
     ]
     for stmt in statements:
         await db.query(stmt)

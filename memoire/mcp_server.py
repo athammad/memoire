@@ -6,7 +6,7 @@ from pathlib import Path
 from mcp.server.fastmcp import FastMCP
 
 from .db import get_db, load_project_config
-from .sdk import get_project_context, search_memory, get_recent_events
+from .sdk import get_project_context, search_memory, get_recent_events, expand_node
 
 mcp = FastMCP("memoire-ai")
 
@@ -24,14 +24,35 @@ def _get_project_id() -> str:
 @mcp.tool()
 async def get_context() -> str:
     """
-    Return a compressed overview of the current project.
+    Return a hierarchical overview of the project.
 
     Call this at the start of every session instead of re-reading project files.
-    Includes known entities, recent events, documents, and relationships.
+    Returns the directory/file tree (structure), semantic relationships between
+    files (IMPORTS, INHERITS, etc.), and recent events.
+
+    Use expand(path) to drill into any directory or file for full detail.
     """
     async with get_db() as db:
         ctx = await get_project_context(db, _get_project_id())
     return json.dumps(ctx, indent=2, default=str)
+
+
+@mcp.tool()
+async def expand(path: str) -> str:
+    """
+    Return full detail for a directory or file node in the project graph.
+
+    For a directory: lists its children with their summaries.
+    For a file: returns the summary, full document content (if stored), and
+    all semantic relationships (IMPORTS, INHERITS, etc.) touching this file.
+
+    Args:
+        path: Relative path from project root, e.g. "memoire/db.py" or "memoire".
+              Use "." for the project root.
+    """
+    async with get_db() as db:
+        result = await expand_node(db, _get_project_id(), path)
+    return json.dumps(result, indent=2, default=str)
 
 
 @mcp.tool()
