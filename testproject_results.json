@@ -1,0 +1,158 @@
+{
+  "project": "/home/lucifer/pCloudDrive/memoire/testproject",
+  "session_model": "claude-haiku-4-5",
+  "extraction_model": "claude-haiku-4-5",
+  "questions": [
+    "What will break if I change the pandas version?",
+    "What files do I need to touch to add a new forecast endpoint?",
+    "What are the riskiest files to modify in this project and why?"
+  ],
+  "conditions": {
+    "baseline": [
+      {
+        "condition": "baseline",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 19099,
+        "output_tokens": 217,
+        "total_tokens": 19316,
+        "estimated_cost_usd": 0.016147,
+        "elapsed_seconds": 10.51,
+        "file_reads": 28,
+        "model": "claude-haiku-4-5",
+        "response_preview": "Three modules are directly affected: **`client.py`**, **`pipeline.py`**, and **`model.py`** \u2014 all import pandas directly.\n\nThe highest-risk point is `pipeline.py`: it uses `pd.Series.shift()` and `dropna()` on the yfinance output. Any behavioral change in those APIs propagates into the ADF stationar"
+      },
+      {
+        "condition": "baseline",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 19102,
+        "output_tokens": 143,
+        "total_tokens": 19245,
+        "estimated_cost_usd": 0.015854,
+        "elapsed_seconds": 11.04,
+        "file_reads": 28,
+        "model": "claude-haiku-4-5",
+        "response_preview": "Based on the architecture doc, here's what to touch:\n\n1. **`src/app.py`** \u2014 add the route handler\n2. **`src/pipeline.py`** \u2014 if new preprocessing logic is needed\n3. **`src/model.py`** \u2014 if a new model variant is needed\n4. **`src/cache.py`** \u2014 if the key schema needs updating for new parameters\n5. **"
+      },
+      {
+        "condition": "baseline",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 19102,
+        "output_tokens": 314,
+        "total_tokens": 19416,
+        "estimated_cost_usd": 0.016538,
+        "elapsed_seconds": 11.54,
+        "file_reads": 28,
+        "model": "claude-haiku-4-5",
+        "response_preview": "Based on the architecture and dependency graph:\n\n**`src/pipeline.py`** \u2014 highest risk. It's a fan-in dependency: `client.py`, `model.py`, and `scheduler.py` all depend on it. The ADF stationarity check is a hard gate \u2014 any behavioral change (pandas `shift()`/`dropna()` semantics, significance thresh"
+      }
+    ],
+    "structural": [
+      {
+        "condition": "structural",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 2274,
+        "output_tokens": 159,
+        "total_tokens": 2433,
+        "estimated_cost_usd": 0.002455,
+        "elapsed_seconds": 7.31,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 28,
+        "edges_causal_dropped": 72,
+        "response_preview": "Based on the knowledge graph, changing the pandas version could break:\n\n- **`tests/test_pipeline.py`** \u2014 imports both `pipeline` and `pandas`\n- **`tests/test_model.py`** \u2014 imports both `model` and `pandas`\n- **`tests/test_client.py`** \u2014 imports `pandas` directly\n- **`tests/conftest.py`** \u2014 imports `"
+      },
+      {
+        "condition": "structural",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 2278,
+        "output_tokens": 92,
+        "total_tokens": 2370,
+        "estimated_cost_usd": 0.00219,
+        "elapsed_seconds": 9.31,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 28,
+        "edges_causal_dropped": 72,
+        "response_preview": "Based on the graph, to add a new forecast endpoint:\n\n1. **`src/model.py`** \u2014 add the forecast logic/method\n2. **`src/app.py`** \u2014 register the new route (this is the FastAPI app)\n3. **`tests/test_app.py`** \u2014 add endpoint tests (it imports `app` and `model`)\n\nIf the forecast needs data prep, also touc"
+      },
+      {
+        "condition": "structural",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 2278,
+        "output_tokens": 297,
+        "total_tokens": 2575,
+        "estimated_cost_usd": 0.00301,
+        "elapsed_seconds": 15.29,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 28,
+        "edges_causal_dropped": 72,
+        "response_preview": "Based on the dependency graph:\n\n**1. `src/model.py` \u2014 highest risk**\nImported by 3 test files: `test_model.py`, `test_app.py`, and `conftest.py`. Since `conftest.py` is pytest's shared fixture file, a breaking change in `model.py` cascades to *every* test that uses those fixtures, not just model tes"
+      }
+    ],
+    "causal": [
+      {
+        "condition": "causal",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 7452,
+        "output_tokens": 117,
+        "total_tokens": 7569,
+        "estimated_cost_usd": 0.00643,
+        "elapsed_seconds": 7.0,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.002917,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 72,
+        "response_preview": "Based on the causal graph, changing the pandas version will break:\n\n**Source files:**\n- `src/model.py`\n- `src/client.py`\n- `src/pipeline.py`\n- `src/dashboard.py`\n\n**Test files:**\n- `tests/test_pipeline.py`\n- `tests/test_model.py`\n- `tests/test_client.py`\n- `tests/conftest.py` (which will cascade to "
+      },
+      {
+        "condition": "causal",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 7455,
+        "output_tokens": 128,
+        "total_tokens": 7583,
+        "estimated_cost_usd": 0.006476,
+        "elapsed_seconds": 10.57,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.002917,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 72,
+        "response_preview": "Based on the graph:\n\n1. **`src/app.py`** \u2014 add the route; it already drives on `model` and `pipeline`, so the wiring is there.\n2. **`src/model.py`** \u2014 add forecast logic (driven by `pandas`; high-fan-in, so keep changes backward-compatible).\n3. **`src/pipeline.py`** \u2014 if the forecast needs data prep"
+      },
+      {
+        "condition": "causal",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 7456,
+        "output_tokens": 308,
+        "total_tokens": 7764,
+        "estimated_cost_usd": 0.007197,
+        "elapsed_seconds": 21.86,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.002917,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 72,
+        "response_preview": "Based on the causal graph, ranked by blast radius:\n\n**1. `src/model.py` \u2014 highest risk**\nThree test files assert on it with `high` cost: `test_model.py`, `conftest.py`, and `test_app.py`. Breaking `conftest.py` is particularly severe \u2014 it's a pytest fixture file, so a conftest failure disables the e"
+      }
+    ]
+  },
+  "summary": {
+    "baseline_tokens": 57977,
+    "structural_tokens": 7378,
+    "causal_tokens": 22916,
+    "structural_vs_baseline_pct": 87.3,
+    "causal_vs_baseline_pct": 60.5,
+    "causal_vs_structural_pct": -210.6,
+    "baseline_cost_usd": 0.048539,
+    "structural_cost_usd": 0.007655,
+    "causal_cost_usd": 0.028854,
+    "baseline_file_reads": 28,
+    "structural_file_reads": 0,
+    "causal_file_reads": 0
+  }
+}

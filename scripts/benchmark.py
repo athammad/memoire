@@ -1,20 +1,26 @@
 """
-Benchmark: memoire vs. baseline Claude session.
+Benchmark: three-condition experiment for memoire.
 
-Measures token usage, file reads, and estimated cost for a set of standard
-questions asked:
-  - WITHOUT memoire (Claude must discover context by reading files)
-  - WITH memoire    (Claude receives get_context() output upfront)
+Condition A — BASELINE   : Claude receives raw concatenated file contents.
+Condition B — STRUCTURAL : Claude receives a knowledge graph with structural
+                           edges only (IMPORTS, CALLS, INHERITS — no causal).
+Condition C — CAUSAL     : Claude receives the full memoire causal graph
+                           (adds DRIVES, SPECIFIES, ASSERTS_ON, DOCUMENTS).
+
+This mirrors the three-condition experiment described in the memoire paper draft.
+The key scientific question: do causal edge semantics improve answer quality
+and/or token efficiency beyond a structural-only graph at matched token budgets?
 
 Usage:
     python scripts/benchmark.py --project-root /path/to/project
     python scripts/benchmark.py --project-root /path/to/project --output results.json
-    python scripts/benchmark.py --project-root /path/to/project --session-model claude-haiku-4-5
+    python scripts/benchmark.py --project-root /path/to/project --session-model claude-sonnet-4-6
 """
 
 import argparse
 import asyncio
 import json
+import shutil
 import subprocess
 import sys
 import time
@@ -30,33 +36,34 @@ QUESTIONS = [
     "What are the riskiest files to modify in this project and why?",
 ]
 
+# Edge types considered structural vs causal (mirrors sdk._CAUSAL_RELATIONS)
+_STRUCTURAL_RELATIONS = {"IMPORTS", "CALLS", "INHERITS", "REFERENCES", "CONTAINS"}
+_CAUSAL_RELATIONS     = {"DRIVES", "SPECIFIES", "IMPLEMENTS", "DOCUMENTS", "ASSERTS_ON"}
+
 # ---------------------------------------------------------------------------
 # Model pricing — $ per million tokens (input, output)
-# Keep in sync with memoire's _LLM_DEFAULTS
 # ---------------------------------------------------------------------------
 
 MODEL_PRICING: dict[str, tuple[float, float]] = {
-    # Claude (Anthropic)
     "claude-haiku-4-5":           (0.80,   4.00),
     "claude-haiku-4-5-20251001":  (0.80,   4.00),
     "claude-sonnet-4-6":          (3.00,  15.00),
     "claude-opus-4-7":            (15.00, 75.00),
-    # OpenAI
     "gpt-4o-mini":                (0.15,   0.60),
     "gpt-4o":                     (2.50,  10.00),
-    # Google
     "gemini-2.0-flash":           (0.10,   0.40),
     "gemini-1.5-flash":           (0.075,  0.30),
     "gemini-1.5-pro":             (1.25,   5.00),
 }
 
-MEMOIRE_EXTRACTION_MODEL = "claude-haiku-4-5"   # matches _LLM_DEFAULTS
+MEMOIRE_EXTRACTION_MODEL = "claude-haiku-4-5"
 
 
 def _cost(input_tokens: int, output_tokens: int, model: str) -> float:
     """Return estimated cost in USD for the given token counts and model."""
     price_in, price_out = MODEL_PRICING.get(model, (3.00, 15.00))
     return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
+
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -96,8 +103,8 @@ def _ask_claude(prompt: str) -> tuple[str, float]:
     return result.stdout.strip(), elapsed
 
 
-def _get_memoire_context(root: Path) -> str:
-    """Call the memoire SDK get_project_context and return the JSON string."""
+def _get_full_context(root: Path) -> dict:
+    """Fetch the full memoire project context (structural + causal edges) as a dict."""
     sys.path.insert(0, str(Path(__file__).parent.parent))
     from memoire.db import get_db
     from memoire.sdk import get_project_context
@@ -113,8 +120,33 @@ def _get_memoire_context(root: Path) -> str:
         async with get_db() as db:
             return await get_project_context(db, project_id)
 
-    result = asyncio.run(_fetch())
-    return _json.dumps(result, indent=2, default=str)
+    return asyncio.run(_fetch())
+
+
+def _structural_context(full: dict) -> dict:
+    """Filter a full context dict down to structural edges only (no causal edges).
+
+    Returns a new dict with the same shape as get_project_context() but with
+    DRIVES / SPECIFIES / ASSERTS_ON / DOCUMENTS / IMPLEMENTS edges removed.
+    This simulates what tools like CodexGraph or Aider RepoMap would provide.
+    """
+    structural_rels = [
+        r for r in full.get("relationships", [])
+        if r.get("relation") not in _CAUSAL_RELATIONS
+    ]
+    return {
+        **full,
+        "relationships": structural_rels,
+    }
+
+
+def _ingest_cost(root: Path) -> float:
+    """Estimate the one-time ingest cost for markdown files in the project."""
+    all_files = _read_project_files(root)
+    md_files = {k: v for k, v in all_files.items() if k.endswith(".md")}
+    ingest_input_tokens = sum(_count_tokens(c) + 200 for c in md_files.values())
+    ingest_output_tokens = len(md_files) * 300
+    return _cost(ingest_input_tokens, ingest_output_tokens, MEMOIRE_EXTRACTION_MODEL)
 
 
 # ---------------------------------------------------------------------------
@@ -122,13 +154,10 @@ def _get_memoire_context(root: Path) -> str:
 # ---------------------------------------------------------------------------
 
 def run_baseline(root: Path, questions: list[str], model: str) -> list[dict]:
-    """Baseline: give Claude the raw file contents, then ask each question."""
-    print("\n[benchmark] Running BASELINE session (no memoire)...")
+    """Condition A: give Claude the raw file contents, then ask each question."""
+    print("\n[benchmark] Condition A — BASELINE (raw files)...")
     files = _read_project_files(root)
-
-    file_context = "\n\n".join(
-        f"=== {name} ===\n{content}" for name, content in files.items()
-    )
+    file_context = "\n\n".join(f"=== {name} ===\n{content}" for name, content in files.items())
     total_file_tokens = _count_tokens(file_context)
     print(f"  Files read: {len(files)}  (~{total_file_tokens:,} tokens of context)")
 
@@ -142,10 +171,11 @@ def run_baseline(root: Path, questions: list[str], model: str) -> list[dict]:
             "Answer concisely."
         )
         response, elapsed = _ask_claude(prompt)
-        input_tokens = _count_tokens(prompt)
+        input_tokens  = _count_tokens(prompt)
         output_tokens = _count_tokens(response)
         estimated_cost = _cost(input_tokens, output_tokens, model)
         results.append({
+            "condition": "baseline",
             "question": question,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
@@ -157,48 +187,42 @@ def run_baseline(root: Path, questions: list[str], model: str) -> list[dict]:
             "response_preview": response[:300],
         })
         print(f"    → {input_tokens:,} in + {output_tokens:,} out tokens, {elapsed:.1f}s, ${estimated_cost:.5f}")
-
     return results
 
 
-def run_memoire(root: Path, questions: list[str], model: str) -> list[dict]:
-    """Memoire: give Claude the get_context() output, then ask each question."""
-    print("\n[benchmark] Running MEMOIRE session...")
+def run_structural(root: Path, questions: list[str], model: str) -> list[dict]:
+    """Condition B: structural knowledge graph only (IMPORTS/CALLS/INHERITS, no causal edges)."""
+    print("\n[benchmark] Condition B — STRUCTURAL graph (no causal edges)...")
     try:
-        context = _get_memoire_context(root)
+        full = _get_full_context(root)
     except Exception as e:
-        print(f"  ERROR fetching memoire context: {e}")
+        print(f"  ERROR fetching context: {e}")
         return []
 
-    context_tokens = _count_tokens(context)
-
-    # Estimate the one-time ingest cost: memoire calls the LLM once per markdown file
-    md_files = [f for f in _read_project_files(root) if f.endswith(".md")]
-    ingest_input_tokens = sum(
-        _count_tokens(content) + 200  # 200 tokens for the extraction prompt overhead
-        for content in [_read_project_files(root).get(f, "") for f in md_files]
-    )
-    ingest_output_tokens = len(md_files) * 300  # ~300 tokens of JSON edges per file
-    ingest_cost = _cost(ingest_input_tokens, ingest_output_tokens, MEMOIRE_EXTRACTION_MODEL)
-
-    print(f"  Graph context: ~{context_tokens:,} tokens  (no file reads)")
-    print(f"  One-time ingest cost: ${ingest_cost:.5f} ({len(md_files)} markdown files × {MEMOIRE_EXTRACTION_MODEL})")
+    structural = _structural_context(full)
+    context_str = json.dumps(structural, indent=2, default=str)
+    context_tokens = _count_tokens(context_str)
+    n_total = len(full.get("relationships", []))
+    n_structural = len(structural.get("relationships", []))
+    n_causal_dropped = n_total - n_structural
+    print(f"  Graph context: ~{context_tokens:,} tokens  ({n_structural} structural edges, {n_causal_dropped} causal edges removed)")
 
     results = []
     for i, question in enumerate(questions, 1):
         print(f"  Q{i}: {question}")
         prompt = (
-            "You are a software engineer. Here is the causal knowledge graph for this project "
-            "(produced by memoire — a persistent causal memory tool):\n\n"
-            f"{context}\n\n"
+            "You are a software engineer. Here is a structural knowledge graph for this project "
+            "(file imports, calls, inheritance — no causal relationships):\n\n"
+            f"{context_str}\n\n"
             f"Question: {question}\n"
             "Answer concisely using the graph. Do not ask to read files."
         )
         response, elapsed = _ask_claude(prompt)
-        input_tokens = _count_tokens(prompt)
+        input_tokens  = _count_tokens(prompt)
         output_tokens = _count_tokens(response)
-        session_cost = _cost(input_tokens, output_tokens, model)
+        session_cost  = _cost(input_tokens, output_tokens, model)
         results.append({
+            "condition": "structural",
             "question": question,
             "input_tokens": input_tokens,
             "output_tokens": output_tokens,
@@ -207,12 +231,63 @@ def run_memoire(root: Path, questions: list[str], model: str) -> list[dict]:
             "elapsed_seconds": round(elapsed, 2),
             "file_reads": 0,
             "model": model,
-            "ingest_cost_usd": round(ingest_cost / len(questions), 6),  # amortised per question
-            "ingest_model": MEMOIRE_EXTRACTION_MODEL,
+            "edges_structural": n_structural,
+            "edges_causal_dropped": n_causal_dropped,
             "response_preview": response[:300],
         })
         print(f"    → {input_tokens:,} in + {output_tokens:,} out tokens, {elapsed:.1f}s, ${session_cost:.5f}")
+    return results
 
+
+def run_causal(root: Path, questions: list[str], model: str) -> list[dict]:
+    """Condition C: full memoire causal graph (structural + DRIVES/SPECIFIES/ASSERTS_ON)."""
+    print("\n[benchmark] Condition C — CAUSAL graph (full memoire)...")
+    try:
+        full = _get_full_context(root)
+    except Exception as e:
+        print(f"  ERROR fetching memoire context: {e}")
+        return []
+
+    context_str    = json.dumps(full, indent=2, default=str)
+    context_tokens = _count_tokens(context_str)
+    ingest_cost    = _ingest_cost(root)
+    n_rels = len(full.get("relationships", []))
+    n_causal = sum(1 for r in full.get("relationships", []) if r.get("relation") in _CAUSAL_RELATIONS)
+
+    print(f"  Graph context: ~{context_tokens:,} tokens  ({n_rels} edges, {n_causal} causal)")
+    print(f"  One-time ingest cost: ${ingest_cost:.5f} ({MEMOIRE_EXTRACTION_MODEL})")
+
+    results = []
+    for i, question in enumerate(questions, 1):
+        print(f"  Q{i}: {question}")
+        prompt = (
+            "You are a software engineer. Here is the causal knowledge graph for this project "
+            "(produced by memoire — includes DRIVES, SPECIFIES, ASSERTS_ON causal edges):\n\n"
+            f"{context_str}\n\n"
+            f"Question: {question}\n"
+            "Answer concisely using the graph. Do not ask to read files."
+        )
+        response, elapsed = _ask_claude(prompt)
+        input_tokens  = _count_tokens(prompt)
+        output_tokens = _count_tokens(response)
+        session_cost  = _cost(input_tokens, output_tokens, model)
+        results.append({
+            "condition": "causal",
+            "question": question,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": input_tokens + output_tokens,
+            "estimated_cost_usd": round(session_cost, 6),
+            "elapsed_seconds": round(elapsed, 2),
+            "file_reads": 0,
+            "model": model,
+            "ingest_cost_usd": round(ingest_cost / len(questions), 6),
+            "ingest_model": MEMOIRE_EXTRACTION_MODEL,
+            "edges_total": n_rels,
+            "edges_causal": n_causal,
+            "response_preview": response[:300],
+        })
+        print(f"    → {input_tokens:,} in + {output_tokens:,} out tokens, {elapsed:.1f}s, ${session_cost:.5f}")
     return results
 
 
@@ -220,49 +295,61 @@ def run_memoire(root: Path, questions: list[str], model: str) -> list[dict]:
 # Report
 # ---------------------------------------------------------------------------
 
-def print_report(baseline: list[dict], memoire: list[dict]) -> None:
-    """Print a comparison table to stdout."""
-    print("\n" + "=" * 80)
-    print("  BENCHMARK RESULTS")
-    print("=" * 80)
+def print_report(
+    baseline: list[dict],
+    structural: list[dict],
+    causal: list[dict],
+) -> None:
+    """Print a three-condition comparison table to stdout."""
+    print("\n" + "=" * 100)
+    print("  BENCHMARK RESULTS  (A: Baseline | B: Structural KG | C: Causal KG)")
+    print("=" * 100)
 
-    if not baseline or not memoire:
-        print("  Incomplete results — one or both sessions failed.")
+    if not baseline or not structural or not causal:
+        print("  Incomplete results — one or more conditions failed.")
         return
 
-    b_total_tok  = sum(r["total_tokens"] for r in baseline)
-    m_total_tok  = sum(r["total_tokens"] for r in memoire)
-    b_total_cost = sum(r["estimated_cost_usd"] for r in baseline)
-    m_total_cost = sum(r["estimated_cost_usd"] for r in memoire)
-    m_ingest     = sum(r.get("ingest_cost_usd", 0) for r in memoire)
-    b_time       = sum(r["elapsed_seconds"] for r in baseline)
-    m_time       = sum(r["elapsed_seconds"] for r in memoire)
-    tok_savings  = b_total_tok - m_total_tok
-    cost_savings = b_total_cost - (m_total_cost + m_ingest)
-    tok_pct      = tok_savings / b_total_tok * 100 if b_total_tok else 0
-    model        = baseline[0]["model"]
+    def _totals(results: list[dict]) -> tuple[int, float, float, float]:
+        tok  = sum(r["total_tokens"] for r in results)
+        cost = sum(r["estimated_cost_usd"] for r in results)
+        ing  = sum(r.get("ingest_cost_usd", 0) for r in results)
+        t    = sum(r["elapsed_seconds"] for r in results)
+        return tok, cost, ing, t
 
-    print(f"\n  Model: {model}")
-    print(f"  Memoire extraction model: {memoire[0].get('ingest_model', MEMOIRE_EXTRACTION_MODEL)}\n")
+    b_tok, b_cost, _,    b_time = _totals(baseline)
+    s_tok, s_cost, _,    s_time = _totals(structural)
+    c_tok, c_cost, c_ing, c_time = _totals(causal)
+    model = baseline[0]["model"]
 
-    hdr = f"  {'Question':<46} {'B.Tok':>7} {'M.Tok':>7} {'B.Cost':>8} {'M.Cost':>8}"
+    print(f"\n  Session model: {model}")
+    print(f"  Extraction model: {MEMOIRE_EXTRACTION_MODEL}  (causal ingest only)\n")
+
+    hdr = f"  {'Question':<44} {'A.Tok':>7} {'B.Tok':>7} {'C.Tok':>7}  {'A.$':>8} {'B.$':>8} {'C.$':>8}"
     print(hdr)
-    print(f"  {'-'*46} {'-'*7} {'-'*7} {'-'*8} {'-'*8}")
-    for b, m in zip(baseline, memoire):
-        q = b["question"][:44]
-        m_total_q = m["estimated_cost_usd"] + m.get("ingest_cost_usd", 0)
-        print(f"  {q:<46} {b['total_tokens']:>7,} {m['total_tokens']:>7,} "
-              f"  ${b['estimated_cost_usd']:>6.5f}   ${m_total_q:>6.5f}")
+    print(f"  {'-'*44} {'-'*7} {'-'*7} {'-'*7}  {'-'*8} {'-'*8} {'-'*8}")
 
-    print(f"\n  {'TOTAL':<46} {b_total_tok:>7,} {m_total_tok:>7,} "
-          f"  ${b_total_cost:>6.5f}   ${m_total_cost + m_ingest:>6.5f}")
-    print(f"  {'TIME (s)':<46} {b_time:>7.1f} {m_time:>7.1f}")
-    print(f"\n  Token reduction:  {tok_pct:.1f}%  ({tok_savings:,} tokens saved)")
-    print(f"  Cost reduction:   ${cost_savings:.5f} saved per {len(baseline)}-question session")
-    print(f"  File reads:       baseline={baseline[0]['file_reads']} files → memoire=0 files")
-    print(f"\n  Note: memoire cost includes amortised ingest (${m_ingest:.5f} spread across questions).")
-    print(f"        Ingest is one-time per project — cost per session drops with each reuse.")
-    print("=" * 80 + "\n")
+    for a, b, c in zip(baseline, structural, causal):
+        q = a["question"][:42]
+        c_total = c["estimated_cost_usd"] + c.get("ingest_cost_usd", 0)
+        print(
+            f"  {q:<44} {a['total_tokens']:>7,} {b['total_tokens']:>7,} {c['total_tokens']:>7,}"
+            f"  ${a['estimated_cost_usd']:>7.5f} ${b['estimated_cost_usd']:>7.5f} ${c_total:>7.5f}"
+        )
+
+    c_total_cost = c_cost + c_ing
+    print(f"\n  {'TOTAL':<44} {b_tok:>7,} {s_tok:>7,} {c_tok:>7,}"
+          f"  ${b_cost:>7.5f} ${s_cost:>7.5f} ${c_total_cost:>7.5f}")
+    print(f"  {'TIME (s)':<44} {b_time:>7.1f} {s_time:>7.1f} {c_time:>7.1f}")
+
+    def _pct(a, b): return (a - b) / a * 100 if a else 0
+
+    print(f"\n  Token reduction  vs baseline:  structural={_pct(b_tok, s_tok):+.1f}%   causal={_pct(b_tok, c_tok):+.1f}%")
+    print(f"  Token reduction  B vs C:       causal over structural={_pct(s_tok, c_tok):+.1f}%")
+    print(f"  Cost reduction   vs baseline:  structural=${b_cost-s_cost:.5f}   causal=${b_cost-c_total_cost:.5f}")
+    print(f"  File reads:  A={baseline[0]['file_reads']}  B=0  C=0")
+    print(f"\n  Note: C cost includes amortised one-time ingest (${c_ing:.5f}).")
+    print(f"        Structural KG (B) has zero ingest cost — edges come from static analysis only.")
+    print("=" * 100 + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -270,7 +357,7 @@ def print_report(baseline: list[dict], memoire: list[dict]) -> None:
 # ---------------------------------------------------------------------------
 
 def main() -> None:
-    """Run the memoire benchmark."""
+    """Run the three-condition memoire benchmark."""
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--project-root", required=True, help="Path to the project to benchmark")
     parser.add_argument("--output", default=None, help="Write full results to this JSON file")
@@ -281,43 +368,64 @@ def main() -> None:
         choices=list(MODEL_PRICING.keys()),
         help="Model used for the benchmark session questions (default: claude-haiku-4-5)",
     )
+    parser.add_argument(
+        "--conditions", nargs="+",
+        choices=["baseline", "structural", "causal", "all"],
+        default=["all"],
+        help="Which conditions to run (default: all)",
+    )
     args = parser.parse_args()
 
-    root = Path(args.project_root).resolve()
+    root      = Path(args.project_root).resolve()
     questions = args.questions or QUESTIONS
-    model = args.session_model
+    model     = args.session_model
+    run_all   = "all" in args.conditions
+    conditions = set(args.conditions)
 
     if not shutil.which("claude"):
         print("ERROR: 'claude' CLI not found. Install Claude Code to run this benchmark.")
         sys.exit(1)
 
-    baseline = run_baseline(root, questions, model)
-    memoire_results = run_memoire(root, questions, model)
-    print_report(baseline, memoire_results)
+    baseline_results   = run_baseline(root, questions, model)   if run_all or "baseline"   in conditions else []
+    structural_results = run_structural(root, questions, model) if run_all or "structural" in conditions else []
+    causal_results     = run_causal(root, questions, model)     if run_all or "causal"     in conditions else []
+
+    print_report(baseline_results, structural_results, causal_results)
 
     if args.output:
-        b_tok  = sum(r["total_tokens"] for r in baseline)
-        m_tok  = sum(r["total_tokens"] for r in memoire_results)
-        b_cost = sum(r["estimated_cost_usd"] for r in baseline)
-        m_cost = sum(r["estimated_cost_usd"] for r in memoire_results)
-        m_ing  = sum(r.get("ingest_cost_usd", 0) for r in memoire_results)
+        def _sum(results, key): return sum(r.get(key, 0) for r in results)
+
+        b_tok  = _sum(baseline_results, "total_tokens")
+        s_tok  = _sum(structural_results, "total_tokens")
+        c_tok  = _sum(causal_results, "total_tokens")
+        b_cost = _sum(baseline_results, "estimated_cost_usd")
+        s_cost = _sum(structural_results, "estimated_cost_usd")
+        c_cost = _sum(causal_results, "estimated_cost_usd")
+        c_ing  = _sum(causal_results, "ingest_cost_usd")
+
         out = {
             "project": str(root),
             "session_model": model,
             "extraction_model": MEMOIRE_EXTRACTION_MODEL,
             "questions": questions,
-            "baseline": baseline,
-            "memoire": memoire_results,
+            "conditions": {
+                "baseline":   baseline_results,
+                "structural": structural_results,
+                "causal":     causal_results,
+            },
             "summary": {
-                "baseline_total_tokens": b_tok,
-                "memoire_total_tokens": m_tok,
-                "token_savings": b_tok - m_tok,
-                "token_reduction_pct": round((b_tok - m_tok) / b_tok * 100, 1) if b_tok else 0,
-                "baseline_cost_usd": round(b_cost, 6),
-                "memoire_cost_usd": round(m_cost + m_ing, 6),
-                "cost_savings_usd": round(b_cost - (m_cost + m_ing), 6),
-                "baseline_file_reads": baseline[0]["file_reads"] if baseline else 0,
-                "memoire_file_reads": 0,
+                "baseline_tokens":   b_tok,
+                "structural_tokens": s_tok,
+                "causal_tokens":     c_tok,
+                "structural_vs_baseline_pct": round((b_tok - s_tok) / b_tok * 100, 1) if b_tok else 0,
+                "causal_vs_baseline_pct":     round((b_tok - c_tok) / b_tok * 100, 1) if b_tok else 0,
+                "causal_vs_structural_pct":   round((s_tok - c_tok) / s_tok * 100, 1) if s_tok else 0,
+                "baseline_cost_usd":   round(b_cost, 6),
+                "structural_cost_usd": round(s_cost, 6),
+                "causal_cost_usd":     round(c_cost + c_ing, 6),
+                "baseline_file_reads":   baseline_results[0]["file_reads"] if baseline_results else 0,
+                "structural_file_reads": 0,
+                "causal_file_reads":     0,
             },
         }
         Path(args.output).write_text(json.dumps(out, indent=2))
@@ -325,5 +433,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    import shutil
     main()
