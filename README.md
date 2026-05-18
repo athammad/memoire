@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/logo.png" alt="memoire" width="300"/>
+</p>
+
 # memoire
 
 Persistent causal memory for AI coding assistants. Install it once — your assistant arrives at every session knowing not just what your project contains, but why things exist, what causes what, where changes will propagate, and what will break.
