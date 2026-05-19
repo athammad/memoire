@@ -1,0 +1,158 @@
+{
+  "project": "/tmp/karpathy-bench",
+  "session_model": "claude-haiku-4-5",
+  "extraction_model": "claude-haiku-4-5",
+  "questions": [
+    "What will break if I change the pandas version?",
+    "What files do I need to touch to add a new forecast endpoint?",
+    "What are the riskiest files to modify in this project and why?"
+  ],
+  "conditions": {
+    "baseline": [
+      {
+        "condition": "baseline",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 35282,
+        "output_tokens": 47,
+        "total_tokens": 35329,
+        "estimated_cost_usd": 0.028414,
+        "elapsed_seconds": 13.79,
+        "file_reads": 40,
+        "model": "claude-haiku-4-5",
+        "response_preview": "Nothing in this codebase uses pandas. The project files (micrograd, minGPT, nanoGPT) depend on PyTorch, numpy, transformers, tiktoken, wandb, tqdm, datasets, and requests \u2014 but not pandas."
+      },
+      {
+        "condition": "baseline",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 35285,
+        "output_tokens": 132,
+        "total_tokens": 35417,
+        "estimated_cost_usd": 0.028756,
+        "elapsed_seconds": 26.79,
+        "file_reads": 40,
+        "model": "claude-haiku-4-5",
+        "response_preview": "The relevant files for adding a new forecast endpoint are in `testproject/src/`:\n\n- **`app.py`** \u2014 defines the FastAPI routes (`@app.get`, `@app.post`); add your new route here\n- **`model.py`** \u2014 contains `ForecastResult`, `fit`, and `forecast`; add new model logic / response schema here if the endp"
+      },
+      {
+        "condition": "baseline",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 35285,
+        "output_tokens": 327,
+        "total_tokens": 35612,
+        "estimated_cost_usd": 0.029536,
+        "elapsed_seconds": 19.55,
+        "file_reads": 40,
+        "model": "claude-haiku-4-5",
+        "response_preview": "Based on the codebase structure, the riskiest files to modify are:\n\n**`micrograd/micrograd/engine.py`** \u2014 The `Value` class is the foundation everything builds on. Gradient bugs here are silent (tests pass numerically by chance) and corrupt all downstream autograd computations. The `_backward` closu"
+      }
+    ],
+    "structural": [
+      {
+        "condition": "structural",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 2046,
+        "output_tokens": 44,
+        "total_tokens": 2090,
+        "estimated_cost_usd": 0.001813,
+        "elapsed_seconds": 4.81,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 25,
+        "edges_causal_dropped": 75,
+        "response_preview": "Nothing in this project uses pandas. The structural graph shows no pandas imports anywhere across nanoGPT, minGPT, or micrograd \u2014 changing the pandas version will have no effect."
+      },
+      {
+        "condition": "structural",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 2050,
+        "output_tokens": 111,
+        "total_tokens": 2161,
+        "estimated_cost_usd": 0.002084,
+        "elapsed_seconds": 8.32,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 25,
+        "edges_causal_dropped": 75,
+        "response_preview": "The structural graph shows no API, web server, or routing infrastructure in this codebase \u2014 it's purely ML training/inference code (nanoGPT, minGPT, micrograd). There are no endpoint files, route registries, or HTTP server entry points to touch.\n\nIf you meant something else by \"forecast endpoint\" (e"
+      },
+      {
+        "condition": "structural",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 2050,
+        "output_tokens": 294,
+        "total_tokens": 2344,
+        "estimated_cost_usd": 0.002816,
+        "elapsed_seconds": 17.9,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 25,
+        "edges_causal_dropped": 75,
+        "response_preview": "Based on fan-in (how many files depend on them) and centrality:\n\n**Highest risk:**\n\n1. **`minGPT/mingpt/model.py`** \u2014 imported by both `chargpt.py` and `test_huggingface_import.py`. Two consumers across training and test paths; breaking it silently breaks both.\n\n2. **`nanoGPT/model.py`** \u2014 imported "
+      }
+    ],
+    "causal": [
+      {
+        "condition": "causal",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 7605,
+        "output_tokens": 89,
+        "total_tokens": 7694,
+        "estimated_cost_usd": 0.00644,
+        "elapsed_seconds": 6.87,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.006431,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 75,
+        "response_preview": "Based on the causal knowledge graph, **nothing in this project will break** if you change the pandas version.\n\nPandas does not appear anywhere in the graph \u2014 no file imports it, and there are no `DRIVES` or `ASSERTS_ON` edges involving pandas. The project's dependencies are `torch`, `numpy`, `tiktok"
+      },
+      {
+        "condition": "causal",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 7609,
+        "output_tokens": 157,
+        "total_tokens": 7766,
+        "estimated_cost_usd": 0.006715,
+        "elapsed_seconds": 10.59,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.006431,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 75,
+        "response_preview": "The graph shows no web framework, routing layer, or API server in this project. It contains only ML training scripts (`nanoGPT/train.py`, `nanoGPT/bench.py`, `nanoGPT/sample.py`) and model libraries (`minGPT`, `micrograd`) \u2014 no HTTP endpoints exist to add a forecast endpoint to.\n\nIf you meant someth"
+      },
+      {
+        "condition": "causal",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 7609,
+        "output_tokens": 304,
+        "total_tokens": 7913,
+        "estimated_cost_usd": 0.007303,
+        "elapsed_seconds": 11.43,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.006431,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 75,
+        "response_preview": "Based on the causal graph, the riskiest files to modify are:\n\n**1. `minGPT/mingpt/model.py`** \u2014 `mingpt.model` has a `DRIVES` relationship to 3 dependents: `test_huggingface_import.py`, `chargpt.py`, and `adder.py`. It's also an `ASSERTS_ON` target (breaking test cost: high).\n\n**2. `minGPT/mingpt/ut"
+      }
+    ]
+  },
+  "summary": {
+    "baseline_tokens": 106358,
+    "structural_tokens": 6595,
+    "causal_tokens": 23373,
+    "structural_vs_baseline_pct": 93.8,
+    "causal_vs_baseline_pct": 78.0,
+    "causal_vs_structural_pct": -254.4,
+    "baseline_cost_usd": 0.086706,
+    "structural_cost_usd": 0.006713,
+    "causal_cost_usd": 0.039751,
+    "baseline_file_reads": 40,
+    "structural_file_reads": 0,
+    "causal_file_reads": 0
+  }
+}

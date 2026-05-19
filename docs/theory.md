@@ -1,6 +1,6 @@
-# Theory & Design
+# Theory
 
-*This document explains the reasoning behind memoire's design — why a causal graph rather than a vector store, how scoring works, and what makes this different from existing tools.*
+*Why a causal graph rather than a vector store, how memoire models causality, and what makes this different from existing tools.*
 
 ---
 
@@ -51,7 +51,7 @@ Layer 3 — Interface & docs
 
 A design document *specifies* what a module must do. The module *implements* the design. Changes to the design *cause* changes in the module. This is intentional causality — it flows from human decisions.
 
-This type of causality is extracted from natural language (design docs, markdown specs) using an LLM during ingestion.
+This type of causality is extracted from natural language (design docs, markdown specs, PDFs, images) using an LLM during ingestion.
 
 ### Consequential causality (runtime impact)
 
@@ -93,11 +93,12 @@ Edges are directional and typed. Each edge carries:
 
 | Relation | Causal? | Cost | Source |
 |---|---|---|---|
-| `SPECIFIES` | yes | normal | LLM extraction from markdown |
-| `IMPLEMENTS` | yes | normal | LLM extraction from markdown |
+| `SPECIFIES` | yes | normal | LLM extraction from markdown, PDF, image |
+| `IMPLEMENTS` | yes | normal | LLM extraction from markdown, PDF, image |
 | `DRIVES` | yes | normal | fan-in promotion, mutation detection, temporal sequences |
-| `DOCUMENTS` | yes | normal | LLM extraction from markdown |
+| `DOCUMENTS` | yes | normal | LLM extraction from markdown, PDF, image |
 | `ASSERTS_ON` | yes | **high** | test file detection + import analysis |
+| `RELATES_TO` | yes | normal | LLM extraction (catch-all for relationships that don't fit the above) |
 | `IMPORTS` | no | normal | static analysis |
 | `INHERITS` | no | normal | static analysis |
 | `CONTAINS` | no | normal | file system traversal |
@@ -138,84 +139,7 @@ The causal graph should be a DAG. After every ingest and promotion batch, a DFS 
 
 ---
 
-## 6. Scoring
-
-### Node score
-
-```
-score = recency + frequency + centrality + side_effect_cost
-
-recency          = exp(-age_days / 7)
-frequency        = log1p(access_count)
-centrality       = log1p(reachability × 2 + causal_in)
-side_effect_cost = log1p(len(side_effects)) × 0.5
-```
-
-`reachability` is computed by BFS from each node — the total number of nodes reachable downstream via causal edges. This is more accurate than out-degree: a core module with 3 direct importers each imported by 5 more files has out-degree 3 but reachability 18.
-
-### Edge score
-
-```
-edge_score = score(source) + score(target) + causal_bonus + cost_bonus + confidence_boost
-
-causal_bonus      = 1.0  if is_causal
-cost_bonus        = 0.5  if cost == "high"
-confidence_boost  = log1p(observations) × 0.3
-```
-
----
-
-## 7. Context compression
-
-`get_context()` returns three things in ~5,500 tokens total:
-
-1. **Structure** — directory/file tree (~200 tokens, full project shape)
-2. **Relationships** — top 100 edges ranked by score (~5,000 tokens)
-3. **Recent events** — last 10 episodic events (~200 tokens)
-
-Compare to re-reading the project: a 20-file Python project typically runs 20,000–60,000 tokens.
-
-When the assistant needs more detail, it calls `expand(path)` — full content and relationships for that specific node, only when actually needed.
-
----
-
-## 8. Language coverage
-
-Static analysis (consequential causality) is implemented for seven language families:
-
-| Language | Side effects | State mutations | Test detection |
-|---|---|---|---|
-| Python | `requests`, `httpx`, `sqlite3`, `redis`, `subprocess`, `open()` | `self.attr = ...` | `test_*.py`, `*_test.py`, `tests/` |
-| TypeScript / JS | `fetch`, `axios`, `fs.*`, `exec`, `spawn`, `prisma`, `mongoose` | `this.attr = ...` | `.test.ts`, `.spec.ts`, `__tests__/` |
-| Go | `net/http`, `os.Create`, `exec.Command`, `database/sql` | — | `_test.go` |
-| Rust | `reqwest`, `std::net`, `std::fs`, `Command::new`, `sqlx`, `diesel` | `self.field = ...` | `_test.rs`, `tests/` |
-| Java | `java.net`, `HttpClient`, `java.io`, `ProcessBuilder`, `java.sql` | `this.field = ...` | `*Test.java`, `src/test/` |
-| Ruby | `Net::HTTP`, `faraday`, `File.*`, `Open3`, `ActiveRecord`, `Redis` | `@attr = ...` | `_spec.rb`, `_test.rb`, `spec/` |
-| C / C++ | `socket`, `fopen`, `system`, `popen`, `sqlite3_exec`, `curl_easy_*` | — | `test_*.c`, `*_test.cpp`, `tests/` |
-
-Markdown and RST files feed the intentional causality layer via LLM extraction (provider-configurable).
-
----
-
-## 9. Multi-provider architecture
-
-The causal graph, scoring, and MCP server are provider-agnostic. Three integration layers vary by provider:
-
-- **Instructions file**: tells the assistant to call `get_context` at session start
-- **MCP config**: where the MCP server registration lives
-- **LLM for markdown extraction**: which API produces intentional causal edges
-
-See [Provider Setup](providers.md) for the full details.
-
----
-
-## 10. What makes this different
-
-Most knowledge graph tools for AI are either:
-
-- **Generic fact stores** (Graphiti, Memento MCP): store any facts with temporal validity, not domain-specific to software
-- **Statistical causal inference** (DoWhy): find cause-effect in datasets using statistical methods — unrelated to software structure
-- **Structural code graphs** (code-graph-mcp, tree-sitter tools): map call and import edges — reachability without risk
+## 6. What makes this different
 
 memoire is specifically designed around one insight: **in a software project, the causal structure flows from design intent through implementation to documentation, and within code it flows through mutation, assertion, and side-effect dependencies.** Both layers must be captured to give an AI assistant the information it needs to make safe, targeted changes.
 

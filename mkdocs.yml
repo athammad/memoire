@@ -43,7 +43,8 @@ nav:
     - Language Support: languages.md
     - MCP Tools: mcp.md
   - Deep Dive:
-    - Theory & Design: theory.md
+    - Theory: theory.md
+    - Design: design.md
     - Benchmark: benchmark.md
   - Contributing: contributing.md
 

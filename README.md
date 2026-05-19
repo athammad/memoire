@@ -8,6 +8,8 @@ Persistent causal memory for AI coding assistants. Install it once — your assi
 
 Works with Claude Code, Cursor, Windsurf, OpenAI, Gemini, and Ollama.
 
+**Documentation:** https://athammad.github.io/memoire
+
 ## The problem
 
 Every Claude Code session starts from zero. Claude re-reads the same files, re-establishes the same context, re-discovers the same architecture. But the deeper problem is worse: even after re-reading everything, Claude still has to reason about impact from scratch — "if I change this function, what breaks?" — by reading code rather than understanding intent and consequence.
@@ -18,7 +20,7 @@ A project has layers of causality. A design document specifies a module. That mo
 
 memoire builds a **causal knowledge graph** that captures this structure. Not just what imports what, but what causes what to change, what will fail if something breaks, and why files exist at all.
 
-See [THEORY.md](THEORY.md) for the full design rationale.
+See the [Theory & Design docs](https://athammad.github.io/memoire/theory/) for the full design rationale.
 
 ## How it works
 
@@ -79,6 +81,13 @@ curl -sSf https://install.surrealdb.com | sh
 pip install memoire-ai
 ```
 
+**macOS (Homebrew):**
+
+```bash
+brew tap athammad/memoire
+brew install memoire-ai
+```
+
 ## Quick start
 
 ```bash
@@ -132,6 +141,19 @@ export GEMINI_API_KEY=...      # gemini
 | `memoire hook-event` | Called automatically by Claude Code hooks (internal) |
 | `memoire pre-read` | Called automatically before Claude reads a file (internal) |
 | `memoire mcp` | Start the MCP server (called automatically by Claude Code) |
+
+## Slash commands (Claude Code)
+
+After `memoire init`, four slash commands are installed in `.claude/commands/`:
+
+| Command | What it does |
+|---|---|
+| `/memoire` | Load the full causal graph — top relationships, project structure, recent events |
+| `/memoire-search <query>` | Search the graph by keyword |
+| `/memoire-expand <path>` | Show all relationships and metadata for a specific file |
+| `/memoire-recent` | Show recent file changes and inferred causal edges |
+
+These call the memoire MCP tools without reading any source files.
 
 ## What Claude can query
 

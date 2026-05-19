@@ -275,8 +275,20 @@ def _write_instructions_file(path: Path, content: str, label: str) -> None:
     click.echo(f"[memoire] Wrote memoire instructions to {path.name}")
 
 
+def _install_slash_commands(claude_dir: Path) -> None:
+    """Copy memoire slash command templates into .claude/commands/."""
+    commands_src = Path(__file__).parent / "commands"
+    commands_dst = claude_dir / "commands"
+    commands_dst.mkdir(exist_ok=True)
+    for src in commands_src.glob("*.md"):
+        dst = commands_dst / src.name
+        if not dst.exists():
+            shutil.copy(src, dst)
+            click.echo(f"[memoire] Installed slash command /{src.stem} → {dst.relative_to(claude_dir.parent)}")
+
+
 def _configure_claude_code(root: Path) -> None:
-    """Configure Claude Code: CLAUDE.md + PostToolUse/PreToolUse hooks + MCP."""
+    """Configure Claude Code: CLAUDE.md + PostToolUse/PreToolUse hooks + MCP + slash commands."""
     claude_dir = root / ".claude"
     claude_dir.mkdir(exist_ok=True)
     settings_path = claude_dir / "settings.json"
@@ -304,6 +316,7 @@ def _configure_claude_code(root: Path) -> None:
 
     settings_path.write_text(json.dumps(settings, indent=2))
 
+    _install_slash_commands(claude_dir)
     _register_mcp_globally("claude")
     _write_instructions_file(root / "CLAUDE.md", _INSTRUCTIONS, "CLAUDE.md")
 
