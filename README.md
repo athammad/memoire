@@ -2,6 +2,17 @@
   <img src="docs/assets/logo.png" alt="memoire" width="300"/>
 </p>
 
+<p align="center">
+  <a href="https://pypi.org/project/memoire-ai"><img src="https://img.shields.io/pypi/v/memoire-ai?color=blue&label=PyPI" alt="PyPI"></a>
+  <a href="https://pypi.org/project/memoire-ai"><img src="https://img.shields.io/pypi/pyversions/memoire-ai" alt="Python"></a>
+  <a href="https://github.com/athammad/memoire/blob/master/LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="License"></a>
+  <a href="https://athammad.github.io/memoire"><img src="https://img.shields.io/badge/docs-online-blueviolet" alt="Docs"></a>
+</p>
+
+<p align="center">
+  <strong>Up to 87% fewer tokens per session &nbsp;·&nbsp; 0 file reads on session start &nbsp;·&nbsp; causal impact analysis without opening files</strong>
+</p>
+
 # memoire
 
 Persistent causal memory for AI coding assistants. Install it once — your assistant arrives at every session knowing not just what your project contains, but why things exist, what causes what, where changes will propagate, and what will break.
@@ -76,15 +87,19 @@ File changes + AI assistant activity
 
 The graph evolves continuously. Every time a file is saved or the assistant edits it, edges are re-observed and their confidence scores increase. Causal patterns that persist across many sessions become highly confident. Transient patterns fade.
 
-## Does it actually save tokens?
+## What you get
 
-Yes — in two distinct ways.
+| | Without memoire | With memoire |
+|---|---|---|
+| **Session start** | Re-reads 20,000–50,000 tokens of files | Loads 2,000–9,000 token causal graph |
+| **Impact analysis** | Opens files to reason about what breaks | Traverses graph edges — 0 file reads |
+| **Token cost (28-file project)** | ~58,000 tok / session | ~7,400 tok (structural) · ~23,000 tok (causal) |
+| **Token reduction** | baseline | **−87%** structural · **−60%** causal |
+| **File reads on session start** | N (one per file) | **0** |
+| **Works offline** | ✓ | ✓ (all data stored locally) |
+| **Supports PDFs & images** | — | ✓ (diagrams, design docs) |
 
-**No re-reading on session start.** Instead of re-reading 20,000–50,000 tokens of files, the assistant receives 2,000–5,000 tokens of structured context.
-
-**Causal reasoning without file reads.** With a structural graph, the assistant still has to open files to reason about impact. With a causal graph, "what do I need to change if I modify this spec?" is answered by traversing edges — no file reads. On a 20-file project, that saves 5,000–15,000 tokens per analysis.
-
-Break-even: roughly 3 sessions on a project with 15+ files.
+Break-even: roughly 3 sessions on a project with 15+ files. See the [full benchmark](https://athammad.github.io/memoire/benchmark/) for methodology and results.
 
 ## Relationship types
 
