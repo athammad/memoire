@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/logo.png" alt="memoire" width="300"/>
+  <img src="docs/assets/logo.png" alt="memoire" width="180"/>
 </p>
 
 <p align="center">
@@ -10,7 +10,10 @@
 </p>
 
 <p align="center">
-  <strong>Up to 87% fewer tokens per session &nbsp;·&nbsp; 0 file reads on session start &nbsp;·&nbsp; causal impact analysis without opening files</strong>
+  <strong>Your project's causal memory. Builds itself. Never resets.</strong>
+</p>
+<p align="center">
+  <em>Up to 87% fewer tokens per session &nbsp;·&nbsp; 0 file reads on session start &nbsp;·&nbsp; knows what breaks before you ask</em>
 </p>
 
 # memoire
