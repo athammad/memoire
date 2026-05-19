@@ -12,9 +12,8 @@ class MemoireAi < Formula
 
   desc "Persistent causal memory for AI coding assistants"
   homepage "https://athammad.github.io/memoire"
-  url "https://github.com/athammad/memoire/archive/refs/heads/master.tar.gz"
-  version "0.1.0"
-  sha256 "5298baba4cf2c901537d89d4370f0ba1fa3c3b4e64bae0957e351254082d1ac1"
+  url "https://files.pythonhosted.org/packages/8f/d6/100ebfc4885412501139170af324a7a82da6b63a429ad5306430dfe3f29c/memoire_ai-0.1.0.tar.gz"
+  sha256 "baf24338d2a6d7abbc89472a22b69973ebd39295830b27e2efeac01a8e54198a"
   license "MIT"
   head "https://github.com/athammad/memoire.git", branch: "master"
 
