@@ -16,7 +16,12 @@ SurrealDB is started automatically by memoire when needed — you don't have to 
 ## Install
 
 ```bash
+# Linux / Windows
 pip install memoire-ai
+
+# macOS (Homebrew)
+brew tap athammad/memoire
+brew install memoire-ai
 ```
 
 ---
@@ -127,6 +132,22 @@ If you don't want a system service, `memoire start` daemonizes without installin
 ## Open a session
 
 Open your IDE and start a new session. The assistant calls `get_context` automatically (via the MCP server) and arrives with the full causal model loaded.
+
+**Claude Code users** — four slash commands are also installed in `.claude/commands/`:
+
+| Command | What it does |
+|---|---|
+| `/memoire` | Load the full causal graph manually |
+| `/memoire-search <query>` | Search the graph by keyword |
+| `/memoire-expand <path>` | Show all relationships for a specific file |
+| `/memoire-recent` | Show recent file changes and inferred causal edges |
+
+**Projects with PDFs or images** (design docs, architecture diagrams):
+
+```bash
+pip install "memoire-ai[pdf]"
+memoire ingest
+```
 
 ---
 

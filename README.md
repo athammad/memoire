@@ -6,13 +6,48 @@
 
 Persistent causal memory for AI coding assistants. Install it once — your assistant arrives at every session knowing not just what your project contains, but why things exist, what causes what, where changes will propagate, and what will break.
 
-Works with Claude Code, Cursor, Windsurf, OpenAI, Gemini, and Ollama.
+Works with **Claude Code**, **Cursor**, **Windsurf**, **OpenAI Codex CLI**, **Gemini CLI**, and **Ollama**.
 
 **Documentation:** https://athammad.github.io/memoire
 
+---
+
+## Install
+
+**Step 1 — Install SurrealDB** (the database memoire runs on):
+
+```bash
+curl -sSf https://install.surrealdb.com | sh
+```
+
+**Step 2 — Install memoire:**
+
+```bash
+# Linux / Windows
+pip install memoire-ai
+
+# macOS
+brew tap athammad/memoire
+brew install memoire-ai
+```
+
+**Step 3 — Set up in your project** (run once, from your project root):
+
+```bash
+memoire init --provider claude   # or: cursor, windsurf, codex, gemini, ollama
+memoire ingest                   # skip this if the project folder is empty
+memoire install-service          # starts automatically on every login from now on
+```
+
+That's it. Open a new session in your IDE — the assistant loads the full causal graph automatically. In Claude Code, you can also type `/memoire` to load it manually.
+
+> **Projects with PDFs or images** (design docs, diagrams): run `pip install "memoire-ai[pdf]"` before `memoire ingest`.
+
+---
+
 ## The problem
 
-Every Claude Code session starts from zero. Claude re-reads the same files, re-establishes the same context, re-discovers the same architecture. But the deeper problem is worse: even after re-reading everything, Claude still has to reason about impact from scratch — "if I change this function, what breaks?" — by reading code rather than understanding intent and consequence.
+Every AI coding session starts from zero. The assistant re-reads the same files, re-establishes the same context, re-discovers the same architecture. But the deeper problem is worse: even after re-reading everything, it still has to reason about impact from scratch — "if I change this function, what breaks?" — by reading code rather than understanding intent and consequence.
 
 ## The insight
 
@@ -25,21 +60,31 @@ See the [Theory & Design docs](https://athammad.github.io/memoire/theory/) for t
 ## How it works
 
 ```
-File changes + Claude activity
-            ↓
-    Background Daemon
-    (watches files, captures hooks)
-            ↓
-        SurrealDB
+File changes + AI assistant activity
+              ↓
+      Background Daemon
+   (watches files, captures hooks)
+              ↓
+          SurrealDB
     (local graph + full-text search)
-            ↓
-       MCP Server
-            ↓
-  Claude starts session with
+              ↓
+         MCP Server
+              ↓
+  Assistant starts session with
   full causal project model — instantly
 ```
 
-The graph evolves continuously. Every time a file is saved or Claude edits it, edges are re-observed and their confidence scores increase. Causal patterns that persist across many sessions become highly confident. Transient patterns fade.
+The graph evolves continuously. Every time a file is saved or the assistant edits it, edges are re-observed and their confidence scores increase. Causal patterns that persist across many sessions become highly confident. Transient patterns fade.
+
+## Does it actually save tokens?
+
+Yes — in two distinct ways.
+
+**No re-reading on session start.** Instead of re-reading 20,000–50,000 tokens of files, the assistant receives 2,000–5,000 tokens of structured context.
+
+**Causal reasoning without file reads.** With a structural graph, the assistant still has to open files to reason about impact. With a causal graph, "what do I need to change if I modify this spec?" is answered by traversing edges — no file reads. On a 20-file project, that saves 5,000–15,000 tokens per analysis.
+
+Break-even: roughly 3 sessions on a project with 15+ files.
 
 ## Relationship types
 
@@ -55,56 +100,6 @@ The graph evolves continuously. Every time a file is saved or Claude edits it, e
 | `CONTAINS` | dir → child | structural | directory/file hierarchy |
 
 Causal edges are ranked above structural ones. High-cost edges (`ASSERTS_ON`, side-effect chains) surface first — breakage there has real-world consequences.
-
-## Does it actually save tokens?
-
-Yes — in two distinct ways.
-
-**No re-reading on session start.** Instead of Claude re-reading 20,000–50,000 tokens of files, it receives 2,000–5,000 tokens of structured context.
-
-**Causal reasoning without file reads.** With a structural graph, Claude still has to open files to reason about impact. With a causal graph, "what do I need to change if I modify this spec?" is answered by traversing edges — no file reads. On a 20-file project, that saves 5,000–15,000 tokens per analysis.
-
-Break-even: roughly 3 sessions on a project with 15+ files.
-
-## Prerequisites
-
-- Python 3.12+
-- [SurrealDB](https://surrealdb.com/install) — started automatically if installed
-
-```bash
-curl -sSf https://install.surrealdb.com | sh
-```
-
-## Installation
-
-```bash
-pip install memoire-ai
-```
-
-**macOS (Homebrew):**
-
-```bash
-brew tap athammad/memoire
-brew install memoire-ai
-```
-
-## Quick start
-
-```bash
-memoire init --provider claude    # Claude Code (default)
-memoire init --provider cursor    # Cursor
-memoire init --provider windsurf  # Windsurf
-memoire init --provider codex     # OpenAI Codex CLI
-memoire init --provider gemini    # Google Gemini CLI
-memoire init --provider ollama    # Ollama (LLM extraction only)
-
-memoire ingest           # deep-read existing files and build the causal graph (skip if project is empty)
-memoire install-service  # install as a system service — starts automatically on every login
-```
-
-Open a new session in your IDE. The assistant calls `get_context` automatically and arrives with the full causal model.
-
-`memoire install-service` registers a systemd user service (Linux) or LaunchAgent (macOS). The daemon starts on login, restarts if it crashes, and works with any project — Ruby, Go, TypeScript, whatever. Run it once and never think about it again.
 
 ## Provider support
 
