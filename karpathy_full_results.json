@@ -1,0 +1,158 @@
+{
+  "project": "/tmp/karpathy-bench",
+  "session_model": "claude-haiku-4-5",
+  "extraction_model": "claude-haiku-4-5",
+  "questions": [
+    "What will break if I change the pandas version?",
+    "What files do I need to touch to add a new forecast endpoint?",
+    "What are the riskiest files to modify in this project and why?"
+  ],
+  "conditions": {
+    "baseline": [
+      {
+        "condition": "baseline",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 116313,
+        "output_tokens": 12,
+        "total_tokens": 116325,
+        "estimated_cost_usd": 0.093098,
+        "elapsed_seconds": 26.24,
+        "file_reads": 55,
+        "model": "claude-haiku-4-5",
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      },
+      {
+        "condition": "baseline",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 116316,
+        "output_tokens": 12,
+        "total_tokens": 116328,
+        "estimated_cost_usd": 0.093101,
+        "elapsed_seconds": 3.79,
+        "file_reads": 55,
+        "model": "claude-haiku-4-5",
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      },
+      {
+        "condition": "baseline",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 116316,
+        "output_tokens": 12,
+        "total_tokens": 116328,
+        "estimated_cost_usd": 0.093101,
+        "elapsed_seconds": 3.22,
+        "file_reads": 55,
+        "model": "claude-haiku-4-5",
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      }
+    ],
+    "structural": [
+      {
+        "condition": "structural",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 2209,
+        "output_tokens": 12,
+        "total_tokens": 2221,
+        "estimated_cost_usd": 0.001815,
+        "elapsed_seconds": 2.86,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 25,
+        "edges_causal_dropped": 75,
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      },
+      {
+        "condition": "structural",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 2212,
+        "output_tokens": 12,
+        "total_tokens": 2224,
+        "estimated_cost_usd": 0.001818,
+        "elapsed_seconds": 2.93,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 25,
+        "edges_causal_dropped": 75,
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      },
+      {
+        "condition": "structural",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 2212,
+        "output_tokens": 12,
+        "total_tokens": 2224,
+        "estimated_cost_usd": 0.001818,
+        "elapsed_seconds": 2.85,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "edges_structural": 25,
+        "edges_causal_dropped": 75,
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      }
+    ],
+    "causal": [
+      {
+        "condition": "causal",
+        "question": "What will break if I change the pandas version?",
+        "input_tokens": 7768,
+        "output_tokens": 12,
+        "total_tokens": 7780,
+        "estimated_cost_usd": 0.006262,
+        "elapsed_seconds": 3.05,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.006431,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 75,
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      },
+      {
+        "condition": "causal",
+        "question": "What files do I need to touch to add a new forecast endpoint?",
+        "input_tokens": 7771,
+        "output_tokens": 12,
+        "total_tokens": 7783,
+        "estimated_cost_usd": 0.006265,
+        "elapsed_seconds": 2.87,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.006431,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 75,
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      },
+      {
+        "condition": "causal",
+        "question": "What are the riskiest files to modify in this project and why?",
+        "input_tokens": 7771,
+        "output_tokens": 12,
+        "total_tokens": 7783,
+        "estimated_cost_usd": 0.006265,
+        "elapsed_seconds": 2.85,
+        "file_reads": 0,
+        "model": "claude-haiku-4-5",
+        "ingest_cost_usd": 0.006431,
+        "ingest_model": "claude-haiku-4-5",
+        "edges_total": 100,
+        "edges_causal": 75,
+        "response_preview": "You've hit your limit \u00b7 resets 4am (Asia/Singapore)"
+      }
+    ]
+  },
+  "summary": {
+    "baseline_tokens": 348981,
+    "structural_tokens": 6669,
+    "causal_tokens": 23346,
+    "structural_vs_baseline_pct": 98.1,
+    "causal_vs_baseline_pct": 93.3,
+    "causal_vs_structural_pct": -250.1,
+    "baseline_cost_usd": 0.2793,
+    "structural_cost_usd": 0.005451,
+    "causal_cost_usd": 0.038085,
+    "baseline_file_reads": 55,
+    "structural_file_reads": 0,
+    "causal_file_reads": 0
+  }
+}

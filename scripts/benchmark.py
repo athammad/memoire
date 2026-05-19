@@ -75,17 +75,70 @@ def _count_tokens(text: str) -> int:
 
 
 def _read_project_files(root: Path) -> dict[str, str]:
-    """Read all source files a baseline Claude would have to read."""
-    extensions = {".py", ".ts", ".js", ".go", ".rs", ".java", ".rb", ".md", ".toml", ".txt", ".json"}
+    """Read all source files a baseline Claude would have to read.
+
+    Handles text files, PDFs (via pypdf), and images (via claude --print vision).
+    This mirrors what Graphify's baseline does — the full raw content of every file.
+    """
+    text_extensions = {
+        ".py", ".ts", ".js", ".go", ".rs", ".java", ".rb",
+        ".md", ".toml", ".txt", ".json", ".svg",
+    }
+    pdf_extensions  = {".pdf"}
+    image_extensions = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
+    all_extensions = text_extensions | pdf_extensions | image_extensions
+
     skip_dirs = {".git", ".memory", "__pycache__", "node_modules", ".venv", "venv"}
     files = {}
+
     for path in sorted(root.rglob("*")):
-        if path.is_file() and path.suffix in extensions:
-            if not any(part in skip_dirs for part in path.parts):
-                try:
-                    files[str(path.relative_to(root))] = path.read_text(errors="ignore")
-                except Exception:
-                    pass
+        if not path.is_file():
+            continue
+        if path.suffix not in all_extensions:
+            continue
+        if any(part in skip_dirs for part in path.parts):
+            continue
+
+        key = str(path.relative_to(root))
+
+        if path.suffix in text_extensions:
+            try:
+                files[key] = path.read_text(errors="ignore")
+            except Exception:
+                pass
+
+        elif path.suffix in pdf_extensions:
+            try:
+                import pypdf  # type: ignore
+                reader = pypdf.PdfReader(str(path))
+                pages = []
+                for i, page in enumerate(reader.pages, 1):
+                    text = page.extract_text() or ""
+                    if text.strip():
+                        pages.append(f"--- Page {i} ---\n{text}")
+                if pages:
+                    files[key] = "\n\n".join(pages)
+            except ImportError:
+                print("  WARNING: pypdf not installed — PDFs excluded from baseline. Run: pip install pypdf")
+            except Exception as exc:
+                print(f"  WARNING: could not extract {key}: {exc}")
+
+        elif path.suffix in image_extensions:
+            try:
+                import base64
+                raw = path.read_bytes()
+                b64 = base64.b64encode(raw).decode()
+                mime = "image/png" if path.suffix == ".png" else "image/jpeg"
+                prompt = (
+                    "Describe every concept, entity, diagram element, label, and relationship "
+                    f"visible in this image concisely.\n\n[image:{mime};base64,{b64}]"
+                )
+                description, _ = _ask_claude(prompt)
+                if description:
+                    files[key] = description
+            except Exception as exc:
+                print(f"  WARNING: could not describe image {key}: {exc}")
+
     return files
 
 

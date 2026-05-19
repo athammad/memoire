@@ -43,7 +43,9 @@ _CODE_EXTENSIONS = {
 
 _SKIP_FILENAMES = {".env", ".env.local", ".env.production", ".env.staging"}
 
-_ALL_RELEVANT = _CODE_EXTENSIONS | _DOC_EXTENSIONS
+_PDF_EXTENSIONS   = {".pdf"}
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+_ALL_RELEVANT = _CODE_EXTENSIONS | _DOC_EXTENSIONS | _PDF_EXTENSIONS | _IMAGE_EXTENSIONS
 
 
 async def _upsert_directory_hierarchy(db, root: Path, file_path: Path, project_id: str) -> None:
@@ -133,17 +135,19 @@ async def deep_ingest(root: Path, project_id: str) -> tuple[int, int]:
 
     async with get_db() as db:
         for path in iter_project_files(root):
-            is_doc = path.suffix in _DOC_EXTENSIONS
+            is_doc    = path.suffix in _DOC_EXTENSIONS
             is_config = path.name in _CONFIG_FILENAMES
-            is_code = path.suffix in _CODE_EXTENSIONS
+            is_code   = path.suffix in _CODE_EXTENSIONS
+            is_pdf    = path.suffix in _PDF_EXTENSIONS
+            is_image  = path.suffix in _IMAGE_EXTENSIONS
 
-            if not (is_doc or is_config or is_code):
+            if not (is_doc or is_config or is_code or is_pdf or is_image):
                 continue
 
             await process_file(path, root, project_id, db, provider_config)
             await _upsert_directory_hierarchy(db, root, path, project_id)
 
-            if is_doc or is_config:
+            if is_doc or is_config or is_pdf or is_image:
                 docs += 1
             else:
                 code += 1

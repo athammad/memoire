@@ -55,7 +55,9 @@ _CODE_EXTENSIONS = {
     ".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".java",
     ".cpp", ".c", ".h", ".rb", ".php", ".swift", ".kt", ".cs",
 }
-_DOC_EXTENSIONS = {".md", ".rst", ".txt"}
+_DOC_EXTENSIONS  = {".md", ".rst", ".txt"}
+_PDF_EXTENSIONS  = {".pdf"}
+_IMAGE_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
 _CONFIG_FILENAMES = {
     "pyproject.toml", "package.json", "Cargo.toml", "go.mod",
     "Makefile", "Dockerfile", "docker-compose.yml", "docker-compose.yaml",
@@ -77,6 +79,121 @@ _MD_PROMPT = (
     '"relationships":[{"source":"...","relation":"SPECIFIES|IMPLEMENTS|DRIVES|DOCUMENTS|RELATES_TO",'
     '"target":"...","rationale":"one sentence why this is causal"}]}\n\n'
 )
+
+
+# ---------------------------------------------------------------------------
+# PDF and image extraction helpers
+# ---------------------------------------------------------------------------
+
+def _extract_pdf_text(path: Path) -> str:
+    """Extract plain text from a PDF using pypdf, page by page.
+
+    Args:
+        path: Path to the PDF file.
+
+    Returns:
+        Concatenated page text, separated by page markers.
+        Empty string if pypdf is not installed or extraction fails.
+    """
+    try:
+        import pypdf  # type: ignore
+    except ImportError:
+        log.warning("[processor] pypdf not installed — skipping PDF %s. Run: pip install pypdf", path.name)
+        return ""
+    try:
+        reader = pypdf.PdfReader(str(path))
+        pages = []
+        for i, page in enumerate(reader.pages, 1):
+            text = page.extract_text() or ""
+            if text.strip():
+                pages.append(f"--- Page {i} ---\n{text}")
+        return "\n\n".join(pages)
+    except Exception as exc:
+        log.warning("[processor] PDF extraction failed for %s: %s", path.name, exc)
+        return ""
+
+
+async def _extract_image_edges(
+    path: Path,
+    rel: str,
+    provider_config: dict | None,
+) -> list[dict]:
+    """Use Claude vision to extract concept/relationship edges from an image.
+
+    Sends the image as a base64-encoded data URL inside a claude --print prompt.
+    Falls back to an empty list if the image cannot be read or the call fails.
+
+    Args:
+        path: Path to the image file.
+        rel: Relative path used as the source entity name.
+        provider_config: Provider config dict (uses claude CLI regardless of provider).
+
+    Returns:
+        List of relationship dicts with source/relation/target/rationale keys.
+    """
+    import base64
+
+    suffix = path.suffix.lower()
+    mime_map = {
+        ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg",
+        ".gif": "image/gif", ".webp": "image/webp",
+    }
+    mime = mime_map.get(suffix)
+    if mime is None:
+        # SVG is XML text — read as text and feed through markdown extraction
+        try:
+            svg_text = path.read_text(errors="ignore")[:_MAX_MD_CHARS_FOR_LLM]
+            return await _extract_markdown(svg_text, rel, provider_config)
+        except Exception:
+            return []
+
+    try:
+        raw = path.read_bytes()
+        b64 = base64.b64encode(raw).decode()
+    except Exception as exc:
+        log.warning("[processor] could not read image %s: %s", path.name, exc)
+        return []
+
+    prompt = (
+        "You are building a causal knowledge graph for a software/research project.\n"
+        "Analyze this image and extract every concept, entity, and relationship you can see.\n\n"
+        "Use only these relation types:\n"
+        "  SPECIFIES  — this diagram defines a contract or requirement\n"
+        "  DRIVES     — one component forces changes in another\n"
+        "  DOCUMENTS  — this image visualises the behaviour of a component\n"
+        "  RELATES_TO — general non-causal association\n\n"
+        "Return JSON only:\n"
+        '{"relationships":[{"source":"...","relation":"SPECIFIES|DRIVES|DOCUMENTS|RELATES_TO",'
+        '"target":"...","rationale":"one sentence"}]}\n\n'
+        f"[image:{mime};base64,{b64}]"
+    )
+    try:
+        result = subprocess.run(
+            ["claude", "--print"],
+            input=prompt,
+            capture_output=True,
+            text=True,
+            timeout=120,
+        )
+        raw_out = result.stdout.strip()
+        # Strip markdown code fences if present
+        if "```" in raw_out:
+            raw_out = re.sub(r"```(?:json)?\s*", "", raw_out).replace("```", "").strip()
+        data = json.loads(raw_out)
+        edges = []
+        for r in data.get("relationships", []):
+            if r.get("source") and r.get("target"):
+                edges.append({
+                    "source": r["source"],
+                    "relation": r.get("relation", "RELATES_TO"),
+                    "target": r["target"],
+                    "rationale": r.get("rationale", ""),
+                    "cost": "normal",
+                })
+        return edges
+    except Exception as exc:
+        log.warning("[processor] image edge extraction failed for %s: %s", path.name, exc)
+        return []
 
 
 # ---------------------------------------------------------------------------
@@ -154,8 +271,43 @@ async def process_file(
     """
     if not path.is_file():
         return
+
+    suffix = path.suffix.lower()
+    rel = str(path.relative_to(root))
+
+    # PDFs and images are handled separately — skip the text-read + size gate
+    if suffix in _PDF_EXTENSIONS:
+        text = _extract_pdf_text(path)
+        if text:
+            await store_document(db, project_id, title=rel, content=text[:_MAX_BYTES], tags=["pdf"])
+            relationships = await _extract_markdown(text[:_MAX_MD_CHARS_FOR_LLM], rel, provider_config)
+            for r in relationships:
+                if r.get("source") and r.get("target"):
+                    await store_relationship(
+                        db, project_id=project_id,
+                        source=r["source"], relation=r["relation"], target=r["target"],
+                        rationale=r.get("rationale", ""), cost=r.get("cost", "normal"),
+                        extracted_from=rel,
+                    )
+            log.debug("[processor] ingested PDF: %s", rel)
+        return
+
+    if suffix in _IMAGE_EXTENSIONS:
+        edges = await _extract_image_edges(path, rel, provider_config)
+        await store_entity(db, project_id, name=rel, entity_type="image",
+                           summary=f"Image: {path.name}")
+        for r in edges:
+            if r.get("source") and r.get("target"):
+                await store_relationship(
+                    db, project_id=project_id,
+                    source=r["source"], relation=r["relation"], target=r["target"],
+                    rationale=r.get("rationale", ""), cost=r.get("cost", "normal"),
+                    extracted_from=rel,
+                )
+        log.debug("[processor] ingested image: %s (%d edges)", rel, len(edges))
+        return
+
     if path.stat().st_size > _MAX_BYTES:
-        rel = str(path.relative_to(root))
         await store_entity(db, project_id, rel, "file", f"Large file: {rel}")
         return
 
@@ -165,14 +317,11 @@ async def process_file(
         log.warning("[processor] could not read %s: %s", path, exc)
         return
 
-    rel = str(path.relative_to(root))
-
     # Skip if content unchanged — avoids redundant LLM calls
     current_hash = _hash(content)
     if await _get_stored_hash(db, project_id, rel) == current_hash:
         log.debug("[processor] unchanged, skipping: %s", rel)
         return
-    suffix = path.suffix.lower()
 
     # --- Side-effect and mutation analysis ---
     side_effects: list[str] = []
