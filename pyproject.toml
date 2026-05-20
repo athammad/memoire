@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "memoire-ai"
-version = "0.1.0"
+version = "0.1.1"
 description = "Persistent causal project memory for AI coding assistants"
 requires-python = ">=3.12"
 readme = "README.md"
@@ -41,3 +41,6 @@ pdf = [
 [tool.setuptools.packages.find]
 where = ["."]
 include = ["memoire*"]
+
+[tool.setuptools.package-data]
+memoire = ["commands/*.md"]
